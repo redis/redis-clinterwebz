@@ -1,0 +1,3 @@
+graft interwebz/static
+graft interwebz/templates
+global-exclude *.pyc

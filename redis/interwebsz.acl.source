@@ -1,0 +1,10 @@
+ACL SETUSER default >secret1
+ACL SETUSER interwebz on >password1
+ACL SETUSER interwebz allkeys resetchannels -@all
+ACL SETUSER interwebz +@connection +@read +@write +@keyspace
+ACL SETUSER interwebz -@blocking -@scripting -@dangerous
+ACL SETUSER interwebz -readonly -asking -hello -wait -quit -reset -auth -readwrite
+ACL SETUSER interwebz -client|tracking -client|getredir -client|info -client|getname -client|reply -client|trackinginfo -client|setname -client|caching
+ACL SETUSER interwebz -copy -move -select -randomkey
+ACL SETUSER interwebz -lolwut
+ACL SETUSER interwebz +info +keys

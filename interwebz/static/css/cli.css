@@ -1,0 +1,36 @@
+.redis-cli {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  margin: 0;
+}
+
+.redis-cli * {
+  background-color: black;
+  color: white;
+  font-family: "Cascadia Code", Menlo, monospace;
+}
+
+.redis-cli .buffer {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.redis-cli .line {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+}
+
+.redis-cli .line .prompt {
+  margin-right: 1ch;
+}
+
+.redis-cli .line .input {
+  border: none;
+  outline: none;
+  padding: 0;
+  width: 100%;
+  font-size: medium;
+}

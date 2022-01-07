@@ -1,0 +1,3 @@
+ACL SETUSER interwebz +acl|commands
+AUTH interwebz password1
+ACL COMMANDS
