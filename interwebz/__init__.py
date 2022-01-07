@@ -1,5 +1,8 @@
+import sys
+from typing import Any
 from flask import Flask, request, render_template
 from flask_cors import CORS
+from .api import verify_commands, execute_commands
 from .pagesession import PageSession
 from .redis import NameSpacedRedis
 
@@ -23,6 +26,11 @@ def create_app(test_config=None):
       # load the test config if passed in
       app.config.from_mapping(test_config)
 
+  def reply(value:Any, error:bool) -> dict:
+      return {
+          'value': value,
+          'error': error,
+      }
 
   @app.route('/', methods=['GET'])
   def home():
@@ -30,22 +38,31 @@ def create_app(test_config=None):
 
   @app.route('/', methods=['POST'])
   def post_command():
-    handshake = bool(request.json['handshake']) # When true, a new session is always created
-    commands = request.json['commands']         # A batch of commands for executions
-    if type(commands) is not list:
-      return "It posts commands as a list", 400
-    ps = PageSession(handshake)
+    if 'handshake' in request.json:
+      try:
+        handshake = bool(request.json['handshake']) # When true, a new session is always created
+      except ValueError:
+        return 'Handshake must be a Boolean', 400
+    if 'commands' in request.json:
+      commands = request.json['commands']           # A batch of commands for executions
+      unsane = verify_commands(commands)
+      if unsane is not None:
+        return unsane
+    else:
+      return ''
+
+    psession = PageSession(handshake)
     # TODO: params creds
-    conn = NameSpacedRedis.from_url('redis://interwebz:password1@localhost:6379', decode_responses=True)
+    client = NameSpacedRedis.from_url('redis://interwebz:password1@localhost:6379', decode_responses=True)
     reply = {
-      'reply': conn.execute_commands(ps, commands)
+      'replies': execute_commands(client, psession , commands)
     }
     if debug_mode:
       reply.update({
-        'id': ps.id,
+        'id': psession.id,
         'commands': commands,
       })
+    print(reply,file=sys.stderr)
     return reply
-
 
   return app

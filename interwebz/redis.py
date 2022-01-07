@@ -1,17 +1,15 @@
-import shlex
-from redis import Redis
+from typing import Any
+from redis import Redis, exceptions
+from .pagesession import PageSession
 
 class NameSpacedRedis(Redis):
   def __init__(self, **kwargs):
     super().__init__(**kwargs)
-    self.max_batch = int(20)
-    self.max_arguments = int(25)
-    self.max_argument_size = int(256)
     self._get_commands()
 
 
   @staticmethod
-  def _pairs_to_dict(response):
+  def _pairs_to_dict(response:list) -> dict:
     if response is None:
         return {}
     it = iter(response)
@@ -19,7 +17,7 @@ class NameSpacedRedis(Redis):
 
 
   @staticmethod
-  def _key_spec_to_dict(response):
+  def _key_spec_to_dict(response:list) -> dict:
     ks = NameSpacedRedis._pairs_to_dict(response)
     ks['begin_search'] = NameSpacedRedis._pairs_to_dict(ks['begin_search'])
     ks['begin_search']['spec'] = NameSpacedRedis._pairs_to_dict(ks['begin_search']['spec'])
@@ -44,7 +42,7 @@ class NameSpacedRedis(Redis):
 
 
   @staticmethod
-  def _match_key_spec(arity, spec, argv):
+  def _match_key_spec(arity:int, spec:dict, argv:list) -> list:
     rep = []
     first, last, step = 0, 0, 0
     argc = len(argv)
@@ -101,12 +99,13 @@ class NameSpacedRedis(Redis):
         if arity < 0:
           return []
         else:
-          raise RuntimeError()  # Command key specs do not match arguments
+          raise exceptions.RedisError('keys do not match the command\'s key_specs')  # Command key specs do not match arguments
       rep.append(i)
     return rep
 
+
   @staticmethod
-  def _keys_index(argv, cmd):
+  def _keys_index(argv:list, cmd:dict) -> list:
     rep = []
     for spec in cmd['key_specs']:
       rep.extend(NameSpacedRedis._match_key_spec(cmd['arity'], spec, argv))
@@ -114,39 +113,19 @@ class NameSpacedRedis(Redis):
 
 
   @staticmethod
-  def _reply(value, error=False):
-    return {
-      'error': error,
-      'value': value,
-    }
+  def _strip_id_from_keys(id:str, keys:list) -> list:
+    return [x[len(str(id))+1:] for x in keys]
 
-  def _snip(self, value, init=0):
-    ps = '... (full value snipped by the interwebz)'
-    return value[:self.max_argument_size - init - len(ps)] + ps
 
-  def execute(self, session, command):
-    try:
-      argv = shlex.split(command)
-    except ValueError as e:
-      return NameSpacedRedis._reply(str(e), True)
-    argc = len(argv)
-    if argc == 0:
-      return NameSpacedRedis._reply(None, False)
-    if argc > self.max_arguments:
-      return NameSpacedRedis._reply(f'too many arguments - only up to {self.max_arguments} allowed on the interwebz', True)
-    for i in range(argc):
-      if type(argv[i]) is not str:
-        return NameSpacedRedis._reply(f'expecting only strings but got {type(argv[i])} as argument', True)
-      if len(argv[i]) > self.max_argument_size:
-        argv[i] = self._snip(argv[i])
-  
+  def execute_namespaced(self, session:PageSession, argv:list) -> Any:
     # Locate the command in the SSOT
     cmd_name = argv[0].lower()
     is_subcmd = False
     if cmd_name not in self.commands:
-      return NameSpacedRedis._reply(f'unknown command \'{argv[0]}\'', True)
+      raise exceptions.RedisError(f'unknown command \'{argv[0]}\'')
 
     # Check if this is a subcommand
+    argc = len(argv)
     if argc > 1:
         subcmd_name = f'{cmd_name} {argv[1].lower()}'
         is_subcmd = subcmd_name in self.commands
@@ -154,11 +133,15 @@ class NameSpacedRedis(Redis):
             cmd_name = subcmd_name
 
     # Pre-processing
-    # TODO: potential "attack" vectors: append, bitfield, sadd, zadd, xadd, hset, lpush/lmove*, sunionstore, zunionstore, ...
+    # TODO: patterns may be extracted the from command arguments pecs, and if so
+    # we can add support for `SORT` and potential future commands automatically.
     cmd = self.commands[cmd_name]
     if cmd_name == 'keys' and argc == 2:
+      # Namespace the key pattern
       argv[1] = f'{session.id}:{argv[1]}'
     elif cmd_name == 'scan':
+      # Namespace all key patterns (even though only the last one really
+      # matters), or slap a namespaced pattern if are given.
       match = False
       for i in range(argc-1):
         if argv[i].lower() == 'match':
@@ -168,51 +151,27 @@ class NameSpacedRedis(Redis):
         argv.append('MATCH')
         argv.append(f'{session.id}:*')
         argc += 2
-    # TODO: patterns may be extracted the from command arguments pecs, and if so
-    # we can add support for `SORT` and potential future commands automatically
     elif cmd_name in ['flushdb', 'flushall']:
-      session.relogin()  # Easier than finding them keys
-      return NameSpacedRedis._reply('OK', False)
-    elif cmd_name == 'setbit' and argc == 4:
-      try:
-        offset = int(argv[2])
-        max_offset = self.max_argument_size * 8
-        if offset > max_offset:
-          return NameSpacedRedis._reply(f'offset too big - only up to {max_offset} bits allowed on the interwebz', True)
-      except ValueError:
-        pass  # let the server return a proper parsing error :)
-    elif cmd_name == 'setrange' and argc == 4:
-      try:
-        offset = int(argv[2])
-        argv[i] = self._snip(argv[i], init=offset)
-      except ValueError:
-        argv[i] = ''
-    elif cmd_name in  ['quit', 'hello', 'reset', 'auth']: # TODO: ACL not applying?
-      return NameSpacedRedis._reply('this command is not available on the interwebz', True)
+      # Much easier than finding them keys
+      session.relogin()
+      return 'OK'
     else:
+      # Namespace the key names
       keys_index = self._keys_index(argv, cmd)
       for i in keys_index:
         argv[i] = f'{session.id}:{argv[i]}'
 
     # Send the command
-    try:
-      conn = self.connection_pool.get_connection(argv[0])
-      conn.send_command(argv[0], *argv[1:])
-      rep = conn.read_response()
-    except Exception as e:
-      return NameSpacedRedis._reply(str(e), True)
-    finally:
-      self.connection_pool.release(conn)
+    conn = self.connection_pool.get_connection(argv[0])
+    conn.send_command(argv[0], *argv[1:])
+    rep = conn.read_response()
+    self.connection_pool.release(conn)
 
-    # Post-processing
+    # Post-processin'
     if cmd_name == 'keys':
-      rep = [x[len(str(session.id))+1:] for x in rep]
+      rep = self._strip_id_from_keys(session.id, rep)
     elif cmd_name == 'scan':
-      rep[1] = [x[len(str(session.id))+1:] for x in rep[1]]
-    return NameSpacedRedis._reply(rep, False)
+      rep[1] = self._strip_id_from_keys(session.id, rep[1])
 
+    return rep
 
-  def execute_commands(self, session, commands):
-    if len(commands) > self.max_batch:
-        return NameSpacedRedis._reply(f'batch too large - only up to {self.max_batch} commands allowed on the interwebz', True)
-    return [self.execute(session, command) for command in commands]

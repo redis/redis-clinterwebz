@@ -1,7 +1,7 @@
 window.addEventListener('DOMContentLoaded', () => {
   var api_url = "http://localhost:5000"; // TODO: API endpoint URL - parametrize
   var prompt_text = "redis:6379> "; // Prompt text
-  var show_latency = 0.05;           // Show latency if execution exceeds this value (seconds)
+  var show_latency = 0.5;           // Show latency if execution exceeds this value (seconds)
   var show_debug = false;           // Show debug information after each request
   var history = [];                 // Command history
   var handshake = true;
@@ -73,7 +73,7 @@ window.addEventListener('DOMContentLoaded', () => {
     } else if (typeof (reply) === "number") {
       return `(integer) ${reply}\n`;
     } else {
-      return `-PROTOCOLERR Unknown RESP2 type ${typeof(reply)}`;
+      return `-PROTOCOLERR Unknown reply type ${typeof(reply)}`;
     }
   }
 
@@ -102,7 +102,7 @@ window.addEventListener('DOMContentLoaded', () => {
       // referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
       body: JSON.stringify({
         handshake,
-        commands
+        commands,
       }),   // body data type must match "Content-Type" header
     });
     handshake = false;
@@ -118,7 +118,14 @@ window.addEventListener('DOMContentLoaded', () => {
     execute([c])
       .then(data => {
         let time = (performance.now() - start) / 1000;
-        add_reply(data.reply[0]);
+        if (data.replies !== undefined) {
+          data.replies.forEach(reply => {
+            add_reply(reply);
+          });  
+        } else {
+          writeln('(error) server replied with nonsense');
+        }
+  
         if (c.length === 1 && show_latency !== 0 && time > show_latency) {
           writeln(`(${Number(time).toFixed(2)}s)`);
         }
@@ -181,16 +188,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
   });
 
-  if (newsession) {
-    console.log('new')
-  }
-
-
   if (asciiart) {
     time = new Date().toISOString()
     execute(['INFO SERVER'])
       .then(data => {
-        raw = data['reply'][0]['value'];
+        raw = data['replies'][0]['value'];
         version = raw.match(/redis_version:(.*)/)[1];
         sha = raw.match(/redis_git_sha1:(.*)/)[1];
         dirty = raw.match(/redis_git_dirty:(.*)/)[1];
@@ -225,13 +227,15 @@ ${buffer.textContent}`;
   }
 
   // Run to-be-historical commands
-  execute(history)
+  if (history.length > 0) {
+    execute(history)
     .then(data => {
-      data.reply.forEach((reply, i) => {
+      data.replies.forEach((reply, i) => {
         writeln(`${prompt_text}${history[i]}`);
         add_reply(reply);
-      });
+      });  
     });
+  }
 
   if (cli.attributes['fullscreen']) {
     input.focus();

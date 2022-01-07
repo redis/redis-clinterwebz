@@ -13,7 +13,7 @@ This project is a browser-based _redis-cli_-like interface to a real Redis serve
 1. Copy-paste this to your terminal: `export FLASK_APP=interwebz`
 1. And lastly: `flask run`
 
-You also need to have local Redis server configured with the included _redis/redis.conf_ file, i.e.:
+You also need to have a local **`unstable`** (at least until v7.0 is out) Redis server configured with the included _redis/redis.conf_ file, i.e.:
 ```bash
 cd redis
 redis-server redis.conf
