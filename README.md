@@ -1,4 +1,6 @@
-# redis-clinterwebz
+# redis-clinterwebz: a redis-cli in your browser
+
+![screenshot](screenshot.png)
 
 ## Getting started
 
