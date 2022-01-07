@@ -124,7 +124,7 @@ class NameSpacedRedis(Redis):
     ps = '... (full value snipped by the interwebz)'
     return value[:self.max_argument_size - init - len(ps)] + ps
 
-  def execute(self, user, command):
+  def execute(self, session, command):
     try:
       argv = shlex.split(command)
     except ValueError as e:
@@ -157,21 +157,21 @@ class NameSpacedRedis(Redis):
     # TODO: potential "attack" vectors: append, bitfield, sadd, zadd, xadd, hset, lpush/lmove*, sunionstore, zunionstore, ...
     cmd = self.commands[cmd_name]
     if cmd_name == 'keys' and argc == 2:
-      argv[1] = f'{user.session_id}:{argv[1]}'
+      argv[1] = f'{session.id}:{argv[1]}'
     elif cmd_name == 'scan':
       match = False
       for i in range(argc-1):
         if argv[i].lower() == 'match':
-          argv[i+1] = f'{user.session_id}:{argv[i+1]}'
+          argv[i+1] = f'{session.id}:{argv[i+1]}'
           match = True
       if not match:
         argv.append('MATCH')
-        argv.append(f'{user.session_id}:*')
+        argv.append(f'{session.id}:*')
         argc += 2
     # TODO: patterns may be extracted the from command arguments pecs, and if so
     # we can add support for `SORT` and potential future commands automatically
     elif cmd_name in ['flushdb', 'flushall']:
-      user.relogin()  # Easier than finding them keys
+      session.relogin()  # Easier than finding them keys
       return NameSpacedRedis._reply('OK', False)
     elif cmd_name == 'setbit' and argc == 4:
       try:
@@ -192,7 +192,7 @@ class NameSpacedRedis(Redis):
     else:
       keys_index = self._keys_index(argv, cmd)
       for i in keys_index:
-        argv[i] = f'{user.session_id}:{argv[i]}'
+        argv[i] = f'{session.id}:{argv[i]}'
 
     # Send the command
     try:
@@ -206,13 +206,13 @@ class NameSpacedRedis(Redis):
 
     # Post-processing
     if cmd_name == 'keys':
-      rep = [x[len(str(user.session_id))+1:] for x in rep]
+      rep = [x[len(str(session.id))+1:] for x in rep]
     elif cmd_name == 'scan':
-      rep[1] = [x[len(str(user.session_id))+1:] for x in rep[1]]
+      rep[1] = [x[len(str(session.id))+1:] for x in rep[1]]
     return NameSpacedRedis._reply(rep, False)
 
 
-  def execute_commands(self, user, commands):
+  def execute_commands(self, session, commands):
     if len(commands) > self.max_batch:
         return NameSpacedRedis._reply(f'batch too large - only up to {self.max_batch} commands allowed on the interwebz', True)
-    return [self.execute(user, command) for command in commands]
+    return [self.execute(session, command) for command in commands]

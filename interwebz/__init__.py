@@ -38,11 +38,11 @@ def create_app(test_config=None):
     # TODO: params creds
     conn = NameSpacedRedis.from_url('redis://interwebz:password1@localhost:6379', decode_responses=True)
     reply = {
-      'reply': conn.execute_commands(ps.id, commands)
+      'reply': conn.execute_commands(ps, commands)
     }
     if debug_mode:
       reply.update({
-        'session_id': ps.session_id,
+        'id': ps.id,
         'commands': commands,
       })
     return reply
