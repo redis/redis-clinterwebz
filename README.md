@@ -2,6 +2,8 @@
 
 ![screenshot](screenshot.png)
 
+This project is a browser-based _redis-cli_-like interface to a real Redis server. It supports multiple sessions via key namespacing, and the script is embeddable so it can be shown in documentation pages.
+
 ## Getting started
 
 1. Clone this repository
