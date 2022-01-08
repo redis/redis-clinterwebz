@@ -1,23 +1,24 @@
+import json
+import os
 import sys
 from typing import Any
 from flask import Flask, request, render_template
 from flask_cors import CORS
+from . import default_settings
 from .api import verify_commands, execute_commands
 from .pagesession import PageSession
-from .redis import NameSpacedRedis
+from .redis import NameSpacedRedis, exceptions
 
 def create_app(test_config=None):
   app = Flask(__name__, instance_relative_config=True)
-  CORS(app, origins=[
-    'http://localhost:1313',
-    'http://127.0.0.1:1313',
-    'https://redis.io',
-    'https://try.redis.io'
-  ])
-
-  # TODO: Set the secret key to some random bytes. Keep this really secret!
-  app.secret_key = b'interactiv3stuf!'
-  debug_mode = True
+  app.config.from_object(default_settings)
+  app.config.from_envvar('INTERWEBZ_SETTINGS', silent=True)
+  json_settings = os.environ.get('INTERWEBZ_JSON_SETTINGS')
+  if json_settings is not None:
+    print(json_settings, file=sys.stderr)
+    app.config.from_file(json_settings, load=json.load)
+    pass
+  CORS(app, **app.config['CORS'])
 
   if test_config is None:
       # load the instance config, if it exists, when not testing
@@ -33,11 +34,13 @@ def create_app(test_config=None):
       }
 
   @app.route('/', methods=['GET'])
-  def home():
-    return render_template('home.html')
+  @app.route('/<dbid>', methods=['GET'])
+  def home(dbid=None):
+    return render_template('home.html', dbid=dbid)
 
   @app.route('/', methods=['POST'])
-  def post_command():
+  @app.route('/<dbid>', methods=['POST'])
+  def post_command(dbid = None):
     if 'handshake' in request.json:
       try:
         handshake = bool(request.json['handshake']) # When true, a new session is always created
@@ -52,17 +55,26 @@ def create_app(test_config=None):
       return ''
 
     psession = PageSession(handshake)
-    # TODO: params creds
-    client = NameSpacedRedis.from_url('redis://interwebz:password1@localhost:6379', decode_responses=True)
+    dburl = None
+    if dbid is None:
+      dburl = app.config['DBS'][0]['url']
+    else:
+      for db in app.config['DBS']:
+        if db['id'] == dbid:
+          dburl = db['url']
+          break
+    if dburl is None:
+      return 'It must provide a valid dbid', 400
+
     reply = {
-      'replies': execute_commands(client, psession , commands)
+      'replies': execute_commands(dburl, psession , commands)
     }
-    if debug_mode:
+    if app.config.get('INCLUDE_DEBUG_REPLY'):
       reply.update({
         'id': psession.id,
+        'dbid': dbid,
         'commands': commands,
       })
-    print(reply,file=sys.stderr)
     return reply
 
   return app

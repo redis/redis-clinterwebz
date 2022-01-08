@@ -1,5 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
-  var api_url = "http://localhost:5000"; // TODO: API endpoint URL - parametrize
+  var api_url = "http://localhost:5000/"; // TODO: API endpoint URL - parametrize
   var prompt_text = "redis:6379> "; // Prompt text
   var show_latency = 0.5;           // Show latency if execution exceeds this value (seconds)
   var show_debug = false;           // Show debug information after each request
@@ -9,8 +9,8 @@ window.addEventListener('DOMContentLoaded', () => {
   var cli = document.querySelector('.redis-cli'); // TODO: what about multiple cli elements?
   if (cli === null) return;
 
+  var dbid = 'dbid' in cli.attributes ? cli.attributes['dbid'].value : '';
   var fullscreen = Boolean(cli.attributes['fullscreen']);
-  var newsession = Boolean(cli.attributes['newsession']);
   var asciiart = Boolean(cli.attributes['asciiart']);
 
   var buffer = cli.firstElementChild;
@@ -90,7 +90,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (commands.length === 0) {
       return [];
     }
-    const response = await fetch(api_url, {
+    const response = await fetch(`${api_url}${dbid}`, {
       method: 'POST',
       mode: 'cors',
       cache: 'no-cache',
@@ -106,7 +106,16 @@ window.addEventListener('DOMContentLoaded', () => {
       }),   // body data type must match "Content-Type" header
     });
     handshake = false;
-    return response.json(); // parses JSON response into native JavaScript objects
+    if (response.status !== 200) {
+      return {
+        replies: [{
+          value: `HTTP ${response.status}: ${response.statusText}`,
+          error: true,
+        }]
+      }
+    } else {
+      return response.json(); // parses JSON response into native JavaScript objects
+    }
   }
 
   // Run the user's command and print the reply
@@ -192,7 +201,12 @@ window.addEventListener('DOMContentLoaded', () => {
     time = new Date().toISOString()
     execute(['INFO SERVER'])
       .then(data => {
+        if (data['replies'])
         raw = data['replies'][0]['value'];
+        if (data['replies'][0]['error']) {
+          buffer.textContent = `(error) ${raw}\n`;
+          return
+        }
         version = raw.match(/redis_version:(.*)/)[1];
         sha = raw.match(/redis_git_sha1:(.*)/)[1];
         dirty = raw.match(/redis_git_dirty:(.*)/)[1];

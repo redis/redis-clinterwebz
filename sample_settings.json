@@ -1,0 +1,16 @@
+{
+    "CORS": {
+        "origins": [
+            "http://localhost:1313",
+            "http://127.0.0.1:1313"
+        ]
+    },
+    "DBS": [
+        {
+            "id": "default",
+            "url": "redis://interwebz:password1@localhost:6379"
+        }
+    ],
+    "SECRET_KEY": "some_random_value",
+    "INCLUDE_DEBUG_REPLY": true
+}

@@ -1,6 +1,8 @@
 from shlex import split
 from typing import Any
 
+from redis import exceptions
+
 from .pagesession import PageSession
 from .redis import NameSpacedRedis
 
@@ -57,7 +59,12 @@ def verify_commands(commands:Any) -> Any:
     return None
 
 
-def execute_commands(client:NameSpacedRedis, session: PageSession, commands:list) -> list:
+def execute_commands(dburl:str, session: PageSession, commands:list) -> list:
+    try:
+        client = NameSpacedRedis.from_url(dburl, decode_responses=True)
+    except exceptions.RedisError as e:
+        return [reply(str(e), True)]
+
     rep = []
     for command in commands:
         try:
