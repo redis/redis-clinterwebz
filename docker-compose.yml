@@ -1,0 +1,22 @@
+version: "3"
+services:
+  flask-app:
+    build:
+      dockerfile: docker/flask/Dockerfile
+      context: .
+    ports:
+      - 6000:6000
+
+  flask-nginx:
+    build:
+      dockerfile: docker/nginx/Dockerfile
+      context: .
+    ports:
+      - 80:80
+
+  redis-unstable:
+    build:
+      dockerfile: docker/redis/Dockerfile
+      context: .
+    ports:
+      - 6379:6379

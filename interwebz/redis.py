@@ -87,7 +87,7 @@ class NameSpacedRedis(Redis):
       firstkey = spec['find_keys']['spec']['firstkey']
       keynumidx = spec['find_keys']['spec']['keynumidx']
       keynum = argv[first + keynumidx]
-      if not isinstance(keynumidx, int):
+      if type(keynum) is not int:
         return rep
       first += firstkey
       last = first + keynum - 1
@@ -157,6 +157,11 @@ class NameSpacedRedis(Redis):
       session.relogin()
       return 'OK'
     else:
+      # Quickly check arity
+      if cmd['arity'] > 0 and argc != cmd['arity']:
+        raise exceptions.RedisError('ERR wrong number of arguments for command')
+      elif cmd['arity'] < 0 and argc < abs(cmd['arity']):
+        raise exceptions.RedisError('ERR wrong number of arguments for command')
       # Namespace the key names
       keys_index = self._keys_index(argv, cmd)
       for i in keys_index:

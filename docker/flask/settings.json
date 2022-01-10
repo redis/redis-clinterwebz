@@ -1,0 +1,15 @@
+{
+    "CORS": {
+        "origins": [
+            "*"
+        ]
+    },
+    "DBS": [
+        {
+            "id": "default",
+            "url": "redis://interwebz:password1@redis-unstable:6379"
+        }
+    ],
+    "SECRET_KEY": "some_random_value",
+    "INCLUDE_DEBUG_REPLY": true
+}

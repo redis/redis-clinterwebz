@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask
+  labels:
+    app: flask
+spec:
+  replicas: 2
+  progressDeadlineSeconds: 120
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: flask
+  template:
+    metadata:
+      name: flask
+      labels:
+        app: flask
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: flask
+          image: localhost:5000/flask:__VERSION__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6000
+          envFrom:
+            - configMapRef:
+                name: flask
+          volumeMounts:
+            - mountPath: /app/public
+              name: public-dir
+          livenessProbe:
+            exec:
+              command:
+                - cat
+                - /app/public/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - cat
+                - /app/public/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        - name: nginx
+          image: nginx
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - mountPath: /etc/nginx/conf.d
+              name: nginx-config
+            - mountPath: /app/public
+              name: public-dir
+            livenessProbe:
+            exec:
+              command:
+                - cat
+                - /app/public/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - cat
+                - /app/public/ready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+        - name: redis
+          image: redis
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 6379
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: flask-nginx
+        - name: public-dir
+          emptyDir: {}

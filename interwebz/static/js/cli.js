@@ -1,5 +1,5 @@
 window.addEventListener('DOMContentLoaded', () => {
-  var api_url = "http://localhost:5000/"; // TODO: API endpoint URL - parametrize
+  var api_url = "/"; // TODO: API endpoint URL - parametrize
   var prompt_text = "redis:6379> "; // Prompt text
   var show_latency = 0.5;           // Show latency if execution exceeds this value (seconds)
   var show_debug = false;           // Show debug information after each request

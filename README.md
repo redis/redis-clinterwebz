@@ -15,7 +15,14 @@ The project boasts:
 
 ## Getting started
 
-### Running the application
+You can use `docker-compose`:
+
+1. Clone this repository
+1. Change directory to the repository
+1. Do `docker-compose up` to spin up the app, a webserver and an unstable Redis
+
+The app should be accessible in your browser at http://localhost 
+### Running the application for development
 
 1. Clone this repository
 1. Change directory to the repository
@@ -29,7 +36,8 @@ The project boasts:
     ```
 1. To run: `flask run`
 
-### Redis Server
+The app should be accessible in your browser at http://localhost:5000
+#### Redis Server
 
 To function correctly, the application requires one or more Redis servers.
 
@@ -41,6 +49,26 @@ An example for a hardend ACL profile is included in the __redis__ directory. To 
 cd redis
 redis-server redis.conf
 ```
+
+### Deploying with minikube
+WIP :)
+sudo bash -c "echo \"$(minikube ip) interwebz.k8s\" >> /etc/hosts"
+
+<!-- minikube start -->
+minikube start --insecure-registry "172.16.243.0/24" --driver=vmware
+minikube start --kubernetes-version=latest --insecure-registry "10.0.0.0/24,192.168.49.0/24"
+! Ensure your minikube ip matches
+minikube addons enable registry 
+minikube addons enable metrics-server 
+minikube addons enable ingress 
+minikube addons enable ingress-dns
+minikube addons enable storage-provisioner
+
+! Add insecure registery to docker, e.g.  "insecure-registries" : ["192.168.49.2:65373"]
+
+eval $(minikube docker-env)
+eval $(minikube -p minikube docker-env)
+make up
 
 ## Configuration
 
