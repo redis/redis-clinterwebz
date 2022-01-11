@@ -1,17 +1,13 @@
 .PHONY: run up svc
 
-version = $(shell date +%H%M%S)
-
 run:
 	python3 app.py
 
 up: dependencies
 up:
-	# docker build -f docker/flask/Dockerfile -t $(shell minikube ip):5000/flask:$(version) .
-	# docker push $(shell minikube ip):5000/flask:$(version)
-	docker build -f docker/flask/Dockerfile -t localhost/flask:$(version) .
-	docker push localhost/flask:$(version)
-	cat kube/deployment.yaml | sed "s/__VERSION__/$(version)/g" | kubectl apply -f -
+	docker build -f docker/flask/Dockerfile -t interwebz/flask:latest .
+	docker build -f docker/redis/Dockerfile -t interwebz/redis:unstable .
+	# cat kube/deployment.yaml | sed "s/__VERSION__/$(version)/g" | kubectl apply -f -
 
 svc: dependencies
 svc:

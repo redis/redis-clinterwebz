@@ -51,6 +51,9 @@ redis-server redis.conf
 ```
 
 ### Deploying with minikube
+kubectl port-forward --namespace=ingress-nginx service/ingress-nginx-controller 8080:80
+https://kubernetes.github.io/ingress-nginx/deploy/#quick-start
+
 WIP :)
 sudo bash -c "echo \"$(minikube ip) interwebz.k8s\" >> /etc/hosts"
 
