@@ -21,7 +21,8 @@ You can use `docker-compose`:
 1. Change directory to the repository
 1. Do `docker-compose up` to spin up the app, a webserver and an unstable Redis
 
-The app should be accessible in your browser at http://localhost 
+The app should be accessible in your browser at http://localhost
+
 ### Running the application for development
 
 1. Clone this repository
@@ -61,9 +62,9 @@ sudo bash -c "echo \"$(minikube ip) interwebz.k8s\" >> /etc/hosts"
 minikube start --insecure-registry "172.16.243.0/24" --driver=vmware
 minikube start --kubernetes-version=latest --insecure-registry "10.0.0.0/24,192.168.49.0/24"
 ! Ensure your minikube ip matches
-minikube addons enable registry 
-minikube addons enable metrics-server 
-minikube addons enable ingress 
+minikube addons enable registry
+minikube addons enable metrics-server
+minikube addons enable ingress
 minikube addons enable ingress-dns
 minikube addons enable storage-provisioner
 
@@ -89,9 +90,7 @@ Alternatively, you can also use a JSON file for the same purpose (see _sample_se
 To embed in an HTML page:
 
 1. Import the _cli.js_ script.
-2. Add a `div` element with the `redis-cli` class.
-3. Add a `pre` element to the `div`.
-4. Add any commands you want to run before the user prompt in the `pre`.
+2. Add a `form` element(s) with the `redis-cli` class.
 
 ### Attributes
 
@@ -99,7 +98,6 @@ The _redis-cli_ element supports these attributes:
 
 * _dbid_: the database ID to use, defaults to the first defined databse.
 * _asciiart_: controls ASCII art display
-* _handshake_: creates a new session per page load
 
 ## TODO
 

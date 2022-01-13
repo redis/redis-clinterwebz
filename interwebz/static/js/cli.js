@@ -1,224 +1,213 @@
-window.addEventListener('DOMContentLoaded', () => {
-  var api_url = "/"; // TODO: API endpoint URL - parametrize
-  var prompt_text = "redis:6379> "; // Prompt text
-  var show_latency = 0.5;           // Show latency if execution exceeds this value (seconds)
-  var show_debug = false;           // Show debug information after each request
-  var history = [];                 // Command history
-  var handshake = true;
+const API_URL = '/',
+  PROMPT_PREFIX = 'redis:6379> ';
 
-  var cli = document.querySelector('.redis-cli'); // TODO: what about multiple cli elements?
-  if (cli === null) return;
+async function createCli(cli) {
+  const pre = createPre(cli),
+    input = createPrompt(cli);
 
-  var dbid = 'dbid' in cli.attributes ? cli.attributes['dbid'].value : '';
-  var fullscreen = Boolean(cli.attributes['fullscreen']);
-  var asciiart = Boolean(cli.attributes['asciiart']);
+  handleHistory(pre, input);
 
-  var buffer = cli.firstElementChild;
-  if (buffer === null) {
-    buffer = document.createElement("pre");   // Lines buffer
-    cli.appendChild(buffer);
-  } else {
-    history = buffer.textContent.split("\n").map(x => x.trim()).filter(x => x != '');
-    buffer.textContent = '';
-  }
-  buffer.classList.add("buffer");
+  try {
+    await asciiArt(cli, pre, input);
+  } finally {
+    cli.addEventListener(
+      'submit',
+      event => {
+        const command = input.value.trim();
+        if (!command) return;
 
-  // UI
-  var prompt = document.createElement("div");   // Text prompt in input line
-  prompt.classList.add("prompt");
-  prompt.textContent = prompt_text;
-  var input = document.createElement("input");  // User input
-  input.classList.add("input");
-  input.setAttribute("type", "text");
-  input.setAttribute("autocomplete", "off");
-  input.setAttribute("spellcheck", "false");
-  var line = document.createElement("div");     // Prompt line
-  line.classList.add("line");
-  line.appendChild(prompt);
-  line.appendChild(input);
-  cli.appendChild(line);
+        input.value = '';
 
-  // Write to the buffer
-  function write(text) {
-    buffer.textContent += text;
-  }
-
-  // Write a line to the buffer
-  function writeln(text) {
-    write(`${text}\n`);
-  }
-
-  // Writes a reply from the API
-  function format_resp2_reply(reply, indent='') {
-    if (Array.isArray(reply)) {
-      if (reply.length === 0) {
-        // null array
-        return '(empty array)\n'
-      } else {
-        let r = '';
-        reply.forEach((x, i) => {
-          if (i === 0) {
-            r += (`${i+1}) `);
-          } else {
-            r += `${indent}${i+1}) `;
-          }
-          r += format_resp2_reply(x, indent + ' '.repeat((i+1).toString().length+2));
-        });
-        return r
+        disablePrompt(
+          cli,
+          input,
+          () => executeInputCommand(event, pre, command)
+        );
       }
-    } else if (reply === null) {
-        return '(nil)\n'
-    } else if (typeof (reply) === "string") {
-      return `"${reply}"\n`
-    } else if (typeof (reply) === "number") {
-      return `(integer) ${reply}\n`;
-    } else {
-      return `-PROTOCOLERR Unknown reply type ${typeof(reply)}`;
-    }
+    );
   }
+}
 
-  function add_reply(reply) {
-    if (reply.error) {
-      writeln(`(error) ${reply.value}`)
-    } else {
-      write(format_resp2_reply(reply.value));
-    }
-  }
+function createPre(cli) {
+  const pre = document.createElement('pre');
+  cli.appendChild(pre);
+  return pre;
+}
 
-  // Sends a command for API execution
-  async function execute(commands) {
-    if (commands.length === 0) {
-      return [];
-    }
-    const response = await fetch(`${api_url}${dbid}`, {
-      method: 'POST',
-      mode: 'cors',
-      cache: 'no-cache',
-      credentials: 'same-origin',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      // redirect: 'follow',
-      // referrerPolicy: 'no-referrer', // no-referrer, *no-referrer-when-downgrade, origin, origin-when-cross-origin, same-origin, strict-origin, strict-origin-when-cross-origin, unsafe-url
-      body: JSON.stringify({
-        handshake,
-        commands,
-      }),   // body data type must match "Content-Type" header
-    });
-    handshake = false;
-    if (response.status !== 200) {
-      return {
-        replies: [{
-          value: `HTTP ${response.status}: ${response.statusText}`,
-          error: true,
-        }]
-      }
-    } else {
-      return response.json(); // parses JSON response into native JavaScript objects
-    }
-  }
+function createPrompt(cli) {
+  const prompt = document.createElement('div');
+  prompt.classList.add('prompt');
 
-  // Run the user's command and print the reply
-  function run_command(command) {
-    const c = command.trim()
-    let start = performance.now();
-    prompt.hidden = true;
+  const prefix = document.createElement('span');
+  prefix.appendChild(document.createTextNode(PROMPT_PREFIX));
+  prompt.appendChild(prefix);
 
-    execute([c])
-      .then(data => {
-        let time = (performance.now() - start) / 1000;
-        if (data.replies !== undefined) {
-          data.replies.forEach(reply => {
-            add_reply(reply);
-          });  
-        } else {
-          writeln('(error) server replied with nonsense');
-        }
-  
-        if (c.length === 1 && show_latency !== 0 && time > show_latency) {
-          writeln(`(${Number(time).toFixed(2)}s)`);
-        }
-        if (show_debug) {
-          writeln(`DEBUG: ${JSON.stringify(data)}`);
-        }  
-      input.scrollIntoView();
-        prompt.hidden = false;
-      });
-  }
+  const input = document.createElement('input');
+  input.setAttribute('name', 'prompt');
+  input.setAttribute('type', 'text');
+  input.setAttribute('autocomplete', 'off');
+  prompt.appendChild(input);
 
-  // Clicks, other than for selections, should focus on imput
-  var capture = fullscreen ? document : cli;
-  capture.addEventListener("click", () => {
-    if (window.getSelection().toString() === '') input.focus();
-  });
-  // If a key is typed focus on the input
-  capture.addEventListener("keydown", (e) => {
-    if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
+  cli.appendChild(prompt);
+
+  cli.addEventListener('click', () => input.focus());
+
+  return input;
+}
+
+async function disablePrompt(cli, input, fn) {
+  cli.classList.add('disabled');
+  input.disabled = true;
+
+  try {
+    await fn();
+  } finally {
+    cli.classList.remove('disabled');
+    input.disabled = false;
     input.focus();
-  }, false);
+  }
+}
 
-  // TODO: handle up/down arrows to browse history
-  // TODO: handle autorepeat for printable characters
-  input.addEventListener("keydown", (e) => {
-    if (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) return;
-    const command = input.value;
-    const c = command.trim().toLowerCase();
-    if (e.key === 'Enter') {
-      input.value = '';
-      writeln(`${prompt_text}${command}`);
-      switch (c) {
-        case '':
-          break;
-        case 'clear':
-          buffer.textContent = '';
-          break;
-        case 'history':
-          history.forEach(x => writeln(x));
-          break;
-        case 'help':
-          writeln(`No problem! Let me just open this url for you: https://redis.io/commands`);
-          window.open('https://redis.io/commands');
-          break;
-        case '!debug':
-          show_debug = true;
-          writeln('DEBUG: on');
-          break;
-        default:
-          run_command(command);
-          history.push(command);
-          break;
-      }
-      if (document.activeElement === input) input.scrollIntoView()
-    } else if (e.key == 'ArrowUp') {
-      // TODO: implement history browsing
-    } else if (e.key == 'ArrowDown') {
-      // TODO: implement history browsing
+function handleHistory(pre, input) {
+  let position = 0,
+    tempValue = '';
+  input.addEventListener('keydown', event => {
+    switch (event.key) {
+      case 'ArrowUp':
+        event.preventDefault();
+
+        if (position === Math.floor(pre.childNodes.length / 2)) return;
+        else if (position === 0) tempValue = input.value;
+
+        ++position;
+        break;
+
+      case 'ArrowDown':
+        event.preventDefault();
+
+        if (position === 0) return;
+        else if (--position === 0) {
+          setInputValue(input, tempValue);
+          return;
+        }
+        break;
+
+      default:
+        return;
     }
 
+    const { nodeValue } = pre.childNodes[pre.childNodes.length - position * 2];
+    setInputValue(input, nodeValue.substring(PROMPT_PREFIX.length, nodeValue.length - 1));
   });
+}
 
-  if (asciiart) {
-    time = new Date().toISOString()
-    execute(['INFO SERVER'])
-      .then(data => {
-        if (data['replies'])
-        raw = data['replies'][0]['value'];
-        if (data['replies'][0]['error']) {
-          buffer.textContent = `(error) ${raw}\n`;
-          return
-        }
-        version = raw.match(/redis_version:(.*)/)[1];
-        sha = raw.match(/redis_git_sha1:(.*)/)[1];
-        dirty = raw.match(/redis_git_dirty:(.*)/)[1];
-        bits = raw.match(/arch_bits:(.*)/)[1];
-        port = raw.match(/tcp_port:(.*)/)[1]; 
-        pid = raw.match(/process_id:(.*)/)[1];
-        buffer.textContent = `${pid}:C ${time} # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
+function setInputValue(input, value) {
+  input.value = value;
+  input.setSelectionRange(value.length, value.length);
+}
+
+async function executeInputCommand(event, pre, command) {
+  event.preventDefault();
+
+  writeLine(pre, `${PROMPT_PREFIX}${command}`);
+
+  switch (command) {
+    case 'help':
+      writeLine(pre, 'No problem! Let me just open this url for you: https://redis.io/commands');
+      window.open('https://redis.io/commands');
+      break;
+
+    default:
+      try {
+        const { replies: [{ error, value }] } = await execute([command]);
+        writeLine(pre, error ? `(error) ${value}` : formatReply(value));
+      } catch (err) {
+        console.error(err);
+        writeLine(pre, `(fatal error) ${err.message}`);
+      }
+      break;
+  }
+}
+
+let id;
+
+async function execute(commands, dbid = '') {
+  const response = await fetch(API_URL + dbid, {
+    method: 'POST',
+    mode: 'cors',
+    cache: 'no-cache',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      commands,
+      id
+    })
+  });
+  const reply = await response.json();
+  id = reply.id;
+  return reply;
+}
+
+function formatReply(reply, indent = '') {
+  if (reply === null) {
+    return '(nil)';
+  }
+
+  const type = typeof reply;
+  if (type === 'string') {
+    return `"${reply}"`;
+  } else if (type === 'number') {
+    return `(interger) ${reply}`;
+  } else if (Array.isArray(reply)) {
+    if (reply.length === 0) {
+      return '(empty array)';
+    } else {
+      let s = '';
+      for (const [i, x] of reply.entries()) {
+        const num = i + 1,
+          nestedIndent = indent + ' '.repeat(num.toString().length + 2);
+        s += `${i === 0 ? '' : `\n${indent}`}${num}) ${formatReply(x, nestedIndent)}`;
+      }
+      return s;
+    }
+  } else {
+    return `-PROTOCOLERR Unknown reply type ${typeof reply}`;
+  }
+}
+
+function writeLine(pre, line) {
+  pre.appendChild(document.createTextNode(line + '\n'));
+}
+
+async function asciiArt(cli, pre, input) {
+  if (cli.getAttribute('asciiart') === null) return;
+
+  disablePrompt(
+    cli,
+    input,
+    async () => {
+      const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER']);
+
+      if (error) {
+        writeLine(pre, `(error) ${raw}`);
+      } else {
+        const time = new Date().toISOString(),
+          version = raw.match(/redis_version:(.*)/)[1],
+          sha = raw.match(/redis_git_sha1:(.*)/)[1],
+          dirty = raw.match(/redis_git_dirty:(.*)/)[1],
+          bits = raw.match(/arch_bits:(.*)/)[1],
+          port = raw.match(/tcp_port:(.*)/)[1],
+          pid = raw.match(/process_id:(.*)/)[1];
+        writeLine(
+          pre,
+`${pid}:C ${time} # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
 ${pid}:C ${time} # Configuration loaded
-                 _._
+                  _._
             _.-\`\`__ ''-._
       _.-\`\`    \`.  \`_.  ''-._            Redis ${version} (${sha}/${dirty}) ${bits} bit
-   .-\`\` .-\`\`\`.  \`\`\`\/    _.,_ ''-._
+    .-\`\` .-\`\`\`.  \`\`\`\/    _.,_ ''-._
   (    '      ,       .-\`  | \`,    )     Running in standalone mode
   |\`-._\`-...-\` __...-.\`\`-._|'\` _.-'|     Port: ${port}
   |    \`-._   \`._    /     _.-'    |     PID: ${pid}
@@ -234,24 +223,14 @@ ${pid}:C ${time} # Configuration loaded
               \`-.__.-'
 
 ${pid}:M ${time} # Server initialized
-${pid}:M ${time} * Ready to accept connections
-
-${buffer.textContent}`;
-      });
-  }
-
-  // Run to-be-historical commands
-  if (history.length > 0) {
-    execute(history)
-    .then(data => {
-      data.replies.forEach((reply, i) => {
-        writeln(`${prompt_text}${history[i]}`);
-        add_reply(reply);
-      });  
+${pid}:M ${time} * Ready to accept connections`
+        );
+      }
     });
-  }
+}
 
-  if (cli.attributes['fullscreen']) {
-    input.focus();
+document.addEventListener('DOMContentLoaded', () => {
+  for (const cli of document.querySelectorAll('form.redis-cli')) {
+    createCli(cli);
   }
 });

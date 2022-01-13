@@ -41,11 +41,6 @@ def create_app(test_config=None):
   @app.route('/', methods=['POST'])
   @app.route('/<dbid>', methods=['POST'])
   def post_command(dbid = None):
-    if 'handshake' in request.json:
-      try:
-        handshake = bool(request.json['handshake']) # When true, a new session is always created
-      except ValueError:
-        return 'Handshake must be a Boolean', 400
     if 'commands' in request.json:
       commands = request.json['commands']           # A batch of commands for executions
       unsane = verify_commands(commands)
@@ -54,7 +49,7 @@ def create_app(test_config=None):
     else:
       return ''
 
-    psession = PageSession(handshake)
+    psession = PageSession()
     dburl = None
     if dbid is None:
       dburl = app.config['DBS'][0]['url']
@@ -67,11 +62,11 @@ def create_app(test_config=None):
       return 'It must provide a valid dbid', 400
 
     reply = {
-      'replies': execute_commands(dburl, psession , commands)
+      'id': psession.id,
+      'replies': execute_commands(dburl, psession, commands)
     }
     if app.config.get('INCLUDE_DEBUG_REPLY'):
       reply.update({
-        'id': psession.id,
         'dbid': dbid,
         'commands': commands,
       })
