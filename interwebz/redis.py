@@ -66,10 +66,10 @@ class NameSpacedRedis(Redis):
         i += incr
     else:
       return rep
-    
+
     if first == 0:
       return rep
-    
+
     find_type = spec['find_keys']['type']
     if find_type == 'range':
       step = spec['find_keys']['spec']['keystep']
@@ -119,6 +119,8 @@ class NameSpacedRedis(Redis):
 
 
   def execute_namespaced(self, session:PageSession, argv:list) -> Any:
+    print(session, argv)
+
     # Locate the command in the SSOT
     cmd_name = argv[0].lower()
     is_subcmd = False
