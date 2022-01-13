@@ -2,7 +2,7 @@ const API_URL = '/',
   PROMPT_PREFIX = 'redis:6379> ';
 
 async function createCli(cli) {
-  const toExecute = cli.textContent.trim().split('\n').map(x => x.trim());
+  const toExecute = getCommandsToExecute(cli);
   for (const node of cli.childNodes) {
     node.remove();
   }
@@ -24,10 +24,10 @@ async function createCli(cli) {
         const command = input.value;
         input.value = '';
         if (!command.trim()) {
-          writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
-          writeLine(pre, input, '');
-          return
+          writeLines(pre, input, command, '');
+          return;
         }
+
         disablePrompt(
           cli,
           input,
@@ -36,8 +36,17 @@ async function createCli(cli) {
       }
     );
 
-    await executeCommands(dbid, pre, input, toExecute);
+    if (toExecute) {
+      await executeCommands(dbid, pre, input, toExecute);
+    }
   }
+}
+
+function getCommandsToExecute(cli) {
+  const textContent = cli.textContent.trim();
+  if (!textContent) return;
+
+  return textContent.split('\n').map(x => x.trim());
 }
 
 function createPre(cli) {
@@ -138,7 +147,7 @@ async function executeCommands(dbid, pre, input, commands) {
       } catch (err) {
         console.error(err);
         writeLines(pre, input, command, `(fatal error) ${err.message}`);
-      }  
+      }
     }
   } catch (err) {
     for (const command of commands) {
