@@ -2,34 +2,47 @@ const API_URL = '/',
   PROMPT_PREFIX = 'redis:6379> ';
 
 async function createCli(cli) {
+  const toExecute = cli.textContent.trim().split('\n').map(x => x.trim());
+  for (const node of cli.childNodes) {
+    node.remove();
+  }
+
   const pre = createPre(cli),
-    input = createPrompt(cli);
+    input = createPrompt(cli),
+    dbid = cli.getAttribute('dbid');
 
   handleHistory(pre, input);
 
   try {
-    await asciiArt(cli, pre, input);
+    await asciiArt(cli, dbid, pre, input);
   } finally {
     cli.addEventListener(
       'submit',
       event => {
-        const command = input.value.trim();
-        if (!command) return;
+        event.preventDefault();
 
+        const command = input.value;
         input.value = '';
-
+        if (!command.trim()) {
+          writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
+          writeLine(pre, input, '');
+          return
+        }
         disablePrompt(
           cli,
           input,
-          () => executeInputCommand(event, pre, command)
+          () => executeInputCommand(dbid, pre, input, command)
         );
       }
     );
+
+    await executeCommands(dbid, pre, input, toExecute);
   }
 }
 
 function createPre(cli) {
   const pre = document.createElement('pre');
+  pre.setAttribute('tabindex', '0');
   cli.appendChild(pre);
   return pre;
 }
@@ -50,7 +63,11 @@ function createPrompt(cli) {
 
   cli.appendChild(prompt);
 
-  cli.addEventListener('click', () => input.focus());
+  cli.addEventListener('keydown', event => {
+    if (event.target === input) return;
+    input.focus();
+    input.scrollIntoView();
+  });
 
   return input;
 }
@@ -106,25 +123,40 @@ function setInputValue(input, value) {
   input.setSelectionRange(value.length, value.length);
 }
 
-async function executeInputCommand(event, pre, command) {
-  event.preventDefault();
+function writeLines(pre, input, command, reply) {
+  writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
+  writeLine(pre, input, reply);
+}
 
-  writeLine(pre, `${PROMPT_PREFIX}${command}`);
+async function executeCommands(dbid, pre, input, commands) {
+  try {
+     const { replies } = await execute(commands, dbid);
+     for (const [i, command] of commands.entries()) {
+      const { error, value } = replies[i];
+      try {
+        writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value));
+      } catch (err) {
+        console.error(err);
+        writeLines(pre, input, command, `(fatal error) ${err.message}`);
+      }  
+    }
+  } catch (err) {
+    for (const command of commands) {
+      writeLines(pre, input, command, err.message);
+    }
+  }
+}
 
+async function executeInputCommand(dbid, pre, input, command) {
   switch (command) {
     case 'help':
-      writeLine(pre, 'No problem! Let me just open this url for you: https://redis.io/commands');
+      writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
+      writeLine(pre, input, 'No problem! Let me just open this url for you: https://redis.io/commands');
       window.open('https://redis.io/commands');
       break;
 
     default:
-      try {
-        const { replies: [{ error, value }] } = await execute([command]);
-        writeLine(pre, error ? `(error) ${value}` : formatReply(value));
-      } catch (err) {
-        console.error(err);
-        writeLine(pre, `(fatal error) ${err.message}`);
-      }
+      executeCommands(dbid, pre, input, [command]);
       break;
   }
 }
@@ -177,21 +209,22 @@ function formatReply(reply, indent = '') {
   }
 }
 
-function writeLine(pre, line) {
+function writeLine(pre, input, line) {
   pre.appendChild(document.createTextNode(line + '\n'));
+  input.scrollIntoView();
 }
 
-async function asciiArt(cli, pre, input) {
+async function asciiArt(cli, dbid, pre, input) {
   if (cli.getAttribute('asciiart') === null) return;
 
   disablePrompt(
     cli,
     input,
     async () => {
-      const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER']);
+      const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER'], dbid);
 
       if (error) {
-        writeLine(pre, `(error) ${raw}`);
+        writeLine(pre, input, `(error) ${raw}`);
       } else {
         const time = new Date().toISOString(),
           version = raw.match(/redis_version:(.*)/)[1],
@@ -202,6 +235,7 @@ async function asciiArt(cli, pre, input) {
           pid = raw.match(/process_id:(.*)/)[1];
         writeLine(
           pre,
+          input,
 `${pid}:C ${time} # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
 ${pid}:C ${time} # Configuration loaded
                   _._
