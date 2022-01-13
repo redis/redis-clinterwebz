@@ -26,7 +26,7 @@ The app should be accessible in your browser at http://localhost
 
 1. Clone this repository
 1. Change directory to the repository
-1. (Recommneded) Use _virtualenv_: `virtualenv -p 3.9 venv; source venv/bin/activate`
+1. (Recommended) Use _virtualenv_: `virtualenv -p 3.9 venv; source venv/bin/activate`
 1. Install the app: `pip install -e .`
 1. Copy-paste this to your terminal:
     ```bash
@@ -50,28 +50,15 @@ cd redis
 redis-server redis.conf
 ```
 
-### Deploying with minikube
+### Deploying on k8s
+
+WIP
+
+```
 kubectl port-forward --namespace=ingress-nginx service/ingress-nginx-controller 8080:80
 https://kubernetes.github.io/ingress-nginx/deploy/#quick-start
-
-WIP :)
-sudo bash -c "echo \"$(minikube ip) interwebz.k8s\" >> /etc/hosts"
-
-<!-- minikube start -->
-minikube start --insecure-registry "172.16.243.0/24" --driver=vmware
-minikube start --kubernetes-version=latest --insecure-registry "10.0.0.0/24,192.168.49.0/24"
-! Ensure your minikube ip matches
-minikube addons enable registry 
-minikube addons enable metrics-server 
-minikube addons enable ingress 
-minikube addons enable ingress-dns
-minikube addons enable storage-provisioner
-
-! Add insecure registery to docker, e.g.  "insecure-registries" : ["192.168.49.2:65373"]
-
-eval $(minikube docker-env)
-eval $(minikube -p minikube docker-env)
 make up
+```
 
 ## Configuration
 

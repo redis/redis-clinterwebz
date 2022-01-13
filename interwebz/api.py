@@ -1,4 +1,5 @@
 from shlex import split
+import sys
 from typing import Any
 
 from redis import exceptions
@@ -19,7 +20,7 @@ def reply(value:Any, error:bool) -> dict:
 
 
 def deny(message:str) -> dict:
-    return reply(f'${message} allowed on the interwebz', True)
+    return reply(f'{message} allowed on the interwebz', True)
 
 
 def snip(value:str, init:int = 0) -> str:
@@ -29,24 +30,26 @@ def snip(value:str, init:int = 0) -> str:
 
 def sanitize_exceptions(argv:list) -> Any:
     # TODO: potential "attack" vectors: append, bitfield, sadd, zadd, xadd, hset, lpush/lmove*, sunionstore, zunionstore, ...
-    cmd_name = argv[0]
+    cmd_name = argv[0].lower()
     argc = len(argv)
     if cmd_name == 'setbit' and argc == 4:
-      try:
-        offset = int(argv[2])
-        max_offset = max_argument_size * 8
-        if offset > max_offset:
-            return f'offset too big - only up to {max_offset} bits allowed'
-      except ValueError:
-        pass  # let the Redis server return a proper parsing error :)
+        try:
+            offset = int(argv[2])
+            max_offset = max_argument_size * 8
+            if offset > max_offset:
+                return f'offset too big - only up to {max_offset} bits allowed'
+        except ValueError:
+            pass  # Let the Redis server return a proper parsing error :)
     elif cmd_name == 'setrange' and argc == 4:
-      try:
-        offset = int(argv[2])
-        argv[3] = snip(argv[3], init=offset)
-      except ValueError:
-        argv[3] = ''
-    elif cmd_name in  ['quit', 'hello', 'reset', 'auth']: # TODO: ACL not applying?
-      return deny(f'this command is not')
+        try:
+            offset = int(argv[2])
+            if offset > max_argument_size:
+                return f'offset too big - only up to {max_argument_size} bytes allowed'
+            argv[3] = argv[3][:(max_argument_size - offset + 1)]
+        except ValueError:
+            argv[3] = ''
+    elif cmd_name in  ['quit', 'hello', 'reset', 'auth']:
+        return f'the \'{argv[0]}\' command is not'
 
     return None
 
@@ -93,7 +96,7 @@ def execute_commands(dburl:str, session: PageSession, commands:list) -> list:
 
         error = sanitize_exceptions(argv)
         if error is not None:
-            deny(error)
+            rep.append(deny(error))
             continue
 
         try:

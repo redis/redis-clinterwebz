@@ -5,7 +5,7 @@ services:
       dockerfile: docker/flask/Dockerfile
       context: .
     ports:
-      - 6000:6000
+      - 5000:5000
 
   flask-nginx:
     build:
