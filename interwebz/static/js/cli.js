@@ -72,8 +72,14 @@ function createPrompt(cli) {
 
   cli.appendChild(prompt);
 
+  cli.addEventListener('click', () => {
+    if (document.getSelection().type === 'Range') return;
+    input.focus();
+  });
+
   cli.addEventListener('keydown', event => {
     if (event.target === input) return;
+    if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return;
     input.focus();
     input.scrollIntoView();
   });
