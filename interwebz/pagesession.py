@@ -1,17 +1,16 @@
-from flask import request
+from flask import request, session
 from uuid import uuid4
 
+
 class PageSession(object):
-  def __init__(self):
-    if 'id' not in request.json:
-      self.relogin()
-    else:
-      self.id = request.json['id']
+    def __init__(self):
+        cid = request.json.get('id', None)
+        sid = session.get('id', None)
+        if cid is None or sid is None or cid != sid:
+            self.relogin()
 
+    def relogin(self):
+        session['id'] = str(uuid4())
 
-  def relogin(self):
-      self.id = str(uuid4())
-
-
-  def __str__(self):
-    return str(self.id)
+    def __str__(self):
+        return str(session['id'])

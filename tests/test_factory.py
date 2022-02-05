@@ -8,4 +8,4 @@ def test_config():
 
 def test_home(client):
     response = client.get('/')
-    assert response.data[0:6]  == b'<html>'
+    assert response.data.startswith(b'<!DOCTYPE html>')

@@ -1,5 +1,4 @@
 from shlex import split
-import sys
 from typing import Any
 
 from redis import exceptions
@@ -12,23 +11,23 @@ max_arguments = 25
 max_argument_size = 256
 
 
-def reply(value:Any, error:bool) -> dict:
+def reply(value: Any, error: bool) -> dict:
     return {
         'value': value,
         'error': error,
     }
 
 
-def deny(message:str) -> dict:
+def deny(message: str) -> dict:
     return reply(f'{message} allowed on the interwebz', True)
 
 
-def snip(value:str, init:int = 0) -> str:
+def snip(value: str, init: int = 0) -> str:
     signature = '... (full value snipped by the interwebz)'
     return value[:max_argument_size - init - len(signature)] + signature
 
 
-def sanitize_exceptions(argv:list) -> Any:
+def sanitize_exceptions(argv: list) -> Any:
     # TODO: potential "attack" vectors: append, bitfield, sadd, zadd, xadd, hset, lpush/lmove*, sunionstore, zunionstore, ...
     cmd_name = argv[0].lower()
     argc = len(argv)
@@ -48,13 +47,13 @@ def sanitize_exceptions(argv:list) -> Any:
             argv[3] = argv[3][:(max_argument_size - offset + 1)]
         except ValueError:
             argv[3] = ''
-    elif cmd_name in  ['quit', 'hello', 'reset', 'auth']:
+    elif cmd_name in ['quit', 'hello', 'reset', 'auth']:
         return f'the \'{argv[0]}\' command is not'
 
     return None
 
 
-def verify_commands(commands:Any) -> Any:
+def verify_commands(commands: Any) -> Any:
     if type(commands) is not list:
         return 'It posts commands as a list', 400
     if len(commands) > max_batch_size:
@@ -62,12 +61,7 @@ def verify_commands(commands:Any) -> Any:
     return None
 
 
-def execute_commands(dburl:str, session: PageSession, commands:list) -> list:
-    try:
-        client = NameSpacedRedis.from_url(dburl, decode_responses=True)
-    except exceptions.RedisError as e:
-        return [reply(str(e), True)]
-
+def execute_commands(client: NameSpacedRedis, session: PageSession, commands: list) -> list:
     rep = []
     for command in commands:
         try:
@@ -80,7 +74,8 @@ def execute_commands(dburl:str, session: PageSession, commands:list) -> list:
         if argc == 0:
             continue
         if argc > max_arguments:
-            rep.append(deny(f'too many arguments - only up to {max_arguments}'))
+            rep.append(
+                deny(f'too many arguments - only up to {max_arguments}'))
             continue
 
         stronly = True
@@ -106,4 +101,3 @@ def execute_commands(dburl:str, session: PageSession, commands:list) -> list:
             rep.append(reply(str(e), True))
 
     return rep
-

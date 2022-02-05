@@ -163,7 +163,11 @@ async function executeCommands(dbid, pre, input, commands) {
 }
 
 async function executeInputCommand(dbid, pre, input, command) {
-  switch (command) {
+  switch (command.toLowerCase()) {
+    case 'clear':
+      pre.replaceChildren();
+      break;
+
     case 'help':
       writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
       writeLine(pre, input, 'No problem! Let me just open this url for you: https://redis.io/commands');

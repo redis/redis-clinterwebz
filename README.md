@@ -56,8 +56,9 @@ redis-server redis.conf
 WIP
 
 ```
-kubectl port-forward --namespace=ingress-nginx service/ingress-nginx-controller 8080:80
-https://kubernetes.github.io/ingress-nginx/deploy/#quick-start
+# kubectl port-forward --namespace=ingress-nginx service/ingress-nginx-controller 8080:80
+# https://kubernetes.github.io/ingress-nginx/deploy/#quick-start
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.1.0/deploy/static/provider/cloud/deploy.yaml
 make up
 ```
 
