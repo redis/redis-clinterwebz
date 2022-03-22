@@ -3,9 +3,7 @@ const API_URL = '/',
 
 async function createCli(cli) {
   const toExecute = getCommandsToExecute(cli);
-  for (const node of cli.childNodes) {
-    node.remove();
-  }
+  cli.replaceChildren();
 
   const pre = createPre(cli),
     input = createPrompt(cli),
@@ -37,8 +35,17 @@ async function createCli(cli) {
     );
 
     if (toExecute) {
-      await executeCommands(dbid, pre, input, toExecute);
+      await executeCommands(dbid, pre, input, toExecute, shouldAnimate(cli));
     }
+  }
+}
+
+function shouldAnimate(cli) {
+  try {
+    return cli.getAttribute('typewriter') !== null &&
+      !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return true;
   }
 }
 
@@ -138,26 +145,26 @@ function setInputValue(input, value) {
   input.setSelectionRange(value.length, value.length);
 }
 
-function writeLines(pre, input, command, reply) {
-  writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
-  writeLine(pre, input, reply);
+async function writeLines(pre, input, command, reply, animate) {
+  await writeLine(pre, input, `${PROMPT_PREFIX}${command}`, animate);
+  await writeLine(pre, input, reply, animate);
 }
 
-async function executeCommands(dbid, pre, input, commands) {
+async function executeCommands(dbid, pre, input, commands, animate) {
   try {
      const { replies } = await execute(commands, dbid);
      for (const [i, command] of commands.entries()) {
       const { error, value } = replies[i];
       try {
-        writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value));
+        await writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value), animate);
       } catch (err) {
         console.error(err);
-        writeLines(pre, input, command, `(fatal error) ${err.message}`);
+        await writeLines(pre, input, command, `(fatal error) ${err.message}`, animate);
       }
     }
   } catch (err) {
     for (const command of commands) {
-      writeLines(pre, input, command, err.message);
+      await writeLines(pre, input, command, err.message, animate);
     }
   }
 }
@@ -228,9 +235,33 @@ function formatReply(reply, indent = '') {
   }
 }
 
-function writeLine(pre, input, line) {
-  pre.appendChild(document.createTextNode(line + '\n'));
+async function writeLine(pre, input, line, animate) {
+  const textNode = document.createTextNode('');
+  pre.appendChild(textNode);
+
+  const toWrite = line + '\n';
+  if (!animate) {
+    textNode.nodeValue = toWrite;
+  } else {
+    await typewriter(textNode, toWrite);
+  }
+
   input.scrollIntoView();
+}
+
+function typewriter(textNode, toWrite) {
+  return new Promise(resolve => {
+    let i = 0;
+    const intervalId = setInterval(() => {
+      if (i === toWrite.length) {
+        clearInterval(intervalId);
+        resolve();
+        return;
+      }
+
+      textNode.nodeValue += toWrite[i++];
+    }, 50);
+  });
 }
 
 async function asciiArt(cli, dbid, pre, input) {
