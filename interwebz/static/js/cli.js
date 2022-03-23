@@ -6,13 +6,13 @@ async function createCli(cli) {
   cli.replaceChildren();
 
   const pre = createPre(cli),
-    input = createPrompt(cli),
+    [input, prompt] = createPrompt(cli),
     dbid = cli.getAttribute('dbid');
 
   handleHistory(pre, input);
 
   try {
-    await asciiArt(cli, dbid, pre, input);
+    await asciiArt(cli, dbid, pre, input, prompt);
   } finally {
     cli.addEventListener(
       'submit',
@@ -22,20 +22,22 @@ async function createCli(cli) {
         const command = input.value;
         input.value = '';
         if (!command.trim()) {
-          writeLines(pre, input, command, '');
+          writeLines(pre, input, command, '', false);
           return;
         }
 
         disablePrompt(
           cli,
           input,
+          prompt,
           () => executeInputCommand(dbid, pre, input, command)
         );
       }
     );
 
     if (toExecute) {
-      await executeCommands(dbid, pre, input, toExecute, shouldAnimate(cli));
+      disablePrompt(cli, input, prompt, () =>
+        executeCommands(dbid, pre, input, toExecute, shouldAnimate(cli)));
     }
   }
 }
@@ -91,20 +93,20 @@ function createPrompt(cli) {
     input.scrollIntoView();
   });
 
-  return input;
+  return [input, prompt];
 }
 
-async function disablePrompt(cli, input, fn) {
+async function disablePrompt(cli, input, prompt, fn) {
   cli.classList.add('disabled');
   input.disabled = true;
-
-  try {
-    await fn();
-  } finally {
-    cli.classList.remove('disabled');
-    input.disabled = false;
-    input.focus();
-  }
+  prompt.style.display = 'none';
+  const p = Promise.all([fn()])
+    .then(() => {
+      prompt.style.display = '';
+      cli.classList.remove('disabled');
+      input.disabled = false;
+      input.focus();
+    });
 }
 
 function handleHistory(pre, input) {
@@ -146,8 +148,8 @@ function setInputValue(input, value) {
 }
 
 async function writeLines(pre, input, command, reply, animate) {
-  await writeLine(pre, input, `${PROMPT_PREFIX}${command}`, animate);
-  await writeLine(pre, input, reply, animate);
+  await writeLine(pre, input, command, animate, true);
+  await writeLine(pre, input, reply, false, false);
 }
 
 async function executeCommands(dbid, pre, input, commands, animate) {
@@ -156,15 +158,15 @@ async function executeCommands(dbid, pre, input, commands, animate) {
      for (const [i, command] of commands.entries()) {
       const { error, value } = replies[i];
       try {
-        await writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value), animate);
+        await writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value), animate, false);
       } catch (err) {
         console.error(err);
-        await writeLines(pre, input, command, `(fatal error) ${err.message}`, animate);
+        await writeLines(pre, input, command, `(fatal error) ${err.message}`, animate, false);
       }
     }
   } catch (err) {
     for (const command of commands) {
-      await writeLines(pre, input, command, err.message, animate);
+      await writeLines(pre, input, command, err.message, animate, false);
     }
   }
 }
@@ -176,8 +178,8 @@ async function executeInputCommand(dbid, pre, input, command) {
       break;
 
     case 'help':
-      writeLine(pre, input, `${PROMPT_PREFIX}${command}`);
-      writeLine(pre, input, 'No problem! Let me just open this url for you: https://redis.io/commands');
+      writeLine(pre, input, command, false, false);
+      writeLine(pre, input, 'No problem! Let me just open this url for you: https://redis.io/commands', false, false);
       window.open('https://redis.io/commands');
       break;
 
@@ -235,13 +237,14 @@ function formatReply(reply, indent = '') {
   }
 }
 
-async function writeLine(pre, input, line, animate) {
+async function writeLine(pre, input, line, animate, prompt) {
   const textNode = document.createTextNode('');
   pre.appendChild(textNode);
 
   const toWrite = line + '\n';
+  if (prompt) textNode.nodeValue = PROMPT_PREFIX;
   if (!animate) {
-    textNode.nodeValue = toWrite;
+    textNode.nodeValue += toWrite;
   } else {
     await typewriter(textNode, toWrite);
   }
@@ -260,32 +263,28 @@ function typewriter(textNode, toWrite) {
       }
 
       textNode.nodeValue += toWrite[i++];
-    }, 50);
+    }, 100+Math.random()*50);
   });
 }
 
-async function asciiArt(cli, dbid, pre, input) {
+async function asciiArt(cli, dbid, pre, input, prompt) {
   if (cli.getAttribute('asciiart') === null) return;
 
-  disablePrompt(
-    cli,
-    input,
-    async () => {
-      const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER'], dbid);
+  const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER'], dbid);
 
-      if (error) {
-        writeLine(pre, input, `(error) ${raw}`);
-      } else {
-        const time = new Date().toISOString(),
-          version = raw.match(/redis_version:(.*)/)[1],
-          sha = raw.match(/redis_git_sha1:(.*)/)[1],
-          dirty = raw.match(/redis_git_dirty:(.*)/)[1],
-          bits = raw.match(/arch_bits:(.*)/)[1],
-          port = raw.match(/tcp_port:(.*)/)[1],
-          pid = raw.match(/process_id:(.*)/)[1];
-        writeLine(
-          pre,
-          input,
+  if (error) {
+    writeLine(pre, input, `(error) ${raw}`, false);
+  } else {
+    const time = new Date().toISOString(),
+      version = raw.match(/redis_version:(.*)/)[1],
+      sha = raw.match(/redis_git_sha1:(.*)/)[1],
+      dirty = raw.match(/redis_git_dirty:(.*)/)[1],
+      bits = raw.match(/arch_bits:(.*)/)[1],
+      port = raw.match(/tcp_port:(.*)/)[1],
+      pid = raw.match(/process_id:(.*)/)[1];
+    writeLine(
+      pre,
+      input,
 `${pid}:C ${time} # oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo
 ${pid}:C ${time} # Configuration loaded
                   _._
@@ -307,10 +306,9 @@ ${pid}:C ${time} # Configuration loaded
               \`-.__.-'
 
 ${pid}:M ${time} # Server initialized
-${pid}:M ${time} * Ready to accept connections`
-        );
-      }
-    });
+${pid}:M ${time} * Ready to accept connections`,
+        false);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
