@@ -1,4 +1,4 @@
-const API_URL = '/',
+const API_URL = 'https://cli.redis.io',
   PROMPT_PREFIX = 'redis:6379> ';
 
 async function createCli(cli) {
@@ -9,10 +9,12 @@ async function createCli(cli) {
     [input, prompt] = createPrompt(cli),
     dbid = cli.getAttribute('dbid');
 
+  drawTerminal(cli);
+  drawBadge(cli);
   handleHistory(pre, input);
 
   try {
-    await asciiArt(cli, dbid, pre, input, prompt);
+    await asciiArt(cli, dbid, pre, input);
   } finally {
     cli.addEventListener(
       'submit',
@@ -26,10 +28,7 @@ async function createCli(cli) {
           return;
         }
 
-        disablePrompt(
-          cli,
-          input,
-          prompt,
+        disablePrompt(cli, input, prompt,
           () => executeInputCommand(dbid, pre, input, command)
         );
       }
@@ -40,6 +39,37 @@ async function createCli(cli) {
         executeCommands(dbid, pre, input, toExecute, shouldAnimate(cli)));
     }
   }
+}
+
+function drawBadge(cli) {
+  if (shouldAnimate(cli)) {
+    return
+  }
+  const badge = document.createElement('div');
+  badge.classList.add('powered');
+  badge.appendChild(document.createTextNode('Powered by'));
+  cli.appendChild(badge);
+}
+
+function drawTerminal(cli) {
+    if (!isTerminal(cli)) return;
+    const bar = document.createElement('div');
+    bar.classList.add('bar');
+
+    const buttons = ['#d00', '#0d0', '#00d'];
+    buttons.forEach((b) => {
+      let button = document.createElement('span');
+      button.classList.add('button')
+      // button.style.backgroundColor = b;
+      bar.appendChild(button);
+    });
+
+    cli.classList.add('terminal');
+    cli.prepend(bar);
+}
+
+function isTerminal(cli) {
+    return cli.getAttribute('terminal') !== null
 }
 
 function shouldAnimate(cli) {
@@ -77,6 +107,7 @@ function createPrompt(cli) {
   input.setAttribute('name', 'prompt');
   input.setAttribute('type', 'text');
   input.setAttribute('autocomplete', 'off');
+  input.setAttribute('spellcheck', 'false');
   prompt.appendChild(input);
 
   cli.appendChild(prompt);
@@ -86,13 +117,12 @@ function createPrompt(cli) {
     input.focus();
   });
 
-  cli.addEventListener('keydown', event => {
+  cli.addEventListener('keydown', event =>  {
     if (event.target === input) return;
     if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey) return;
     input.focus();
-    input.scrollIntoView();
+    input.scrollIntoView({block: "nearest"});
   });
-
   return [input, prompt];
 }
 
@@ -105,7 +135,7 @@ async function disablePrompt(cli, input, prompt, fn) {
       prompt.style.display = '';
       cli.classList.remove('disabled');
       input.disabled = false;
-      input.focus();
+      input.focus({preventScroll: true});
     });
 }
 
@@ -161,12 +191,12 @@ async function executeCommands(dbid, pre, input, commands, animate) {
         await writeLines(pre, input, command, error ? `(error) ${value}` : formatReply(value), animate, false);
       } catch (err) {
         console.error(err);
-        await writeLines(pre, input, command, `(fatal error) ${err.message}`, animate, false);
+        await writeLines(pre, input, command, `(fatal error) ${err.message}`, animate);
       }
     }
   } catch (err) {
     for (const command of commands) {
-      await writeLines(pre, input, command, err.message, animate, false);
+      await writeLines(pre, input, command, err.message, animate);
     }
   }
 }
@@ -219,7 +249,7 @@ function formatReply(reply, indent = '') {
   if (type === 'string') {
     return `"${reply}"`;
   } else if (type === 'number') {
-    return `(interger) ${reply}`;
+    return `(integer) ${reply}`;
   } else if (Array.isArray(reply)) {
     if (reply.length === 0) {
       return '(empty array)';
@@ -248,8 +278,7 @@ async function writeLine(pre, input, line, animate, prompt) {
   } else {
     await typewriter(textNode, toWrite);
   }
-
-  input.scrollIntoView();
+  input.scrollIntoView({block: "nearest"});
 }
 
 function typewriter(textNode, toWrite) {
@@ -263,11 +292,11 @@ function typewriter(textNode, toWrite) {
       }
 
       textNode.nodeValue += toWrite[i++];
-    }, 100+Math.random()*50);
+    }, 25+Math.random()*25);
   });
 }
 
-async function asciiArt(cli, dbid, pre, input, prompt) {
+async function asciiArt(cli, dbid, pre, input) {
   if (cli.getAttribute('asciiart') === null) return;
 
   const { replies: [{ error, value: raw }] } = await execute(['INFO SERVER'], dbid);
