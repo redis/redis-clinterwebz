@@ -42,7 +42,7 @@ async function createCli(cli) {
 }
 
 function drawBadge(cli) {
-  if (shouldAnimate(cli)) {
+  if (shouldAnimate(cli) || !isTerminal(cli)) {
     return
   }
   const badge = document.createElement('div');

@@ -72,7 +72,7 @@ class BeginSearchKeyord(BeginSearchBase):
         i = start_index
         incr = 1 if start_index <= end_index else -1
         while i != end_index:
-            if i > argc:
+            if i > len(argv):
                 break
             if argv[i] == self.keyword:
                 return i + 1
@@ -107,7 +107,7 @@ class CommandSpec():
             for i in range(first, last + 1, step):
                 if i >= argc:
                     # Module and negative arity commands (TODO: find out if module command)
-                    if arity < 0:
+                    if self.arity < 0:
                         continue
                     else:
                         # Command key specs do not match arguments

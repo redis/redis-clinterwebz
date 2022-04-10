@@ -4,10 +4,11 @@ from uuid import uuid4
 
 class PageSession(object):
     def __init__(self):
-        cid = request.json.get('id', None)
-        sid = session.get('id', None)
-        if cid is None or sid is None or cid != sid:
+        cid = request.json.get('id')
+        if cid is None:
             self.relogin()
+        else:
+            session['id'] = cid
 
     def relogin(self):
         session['id'] = str(uuid4())

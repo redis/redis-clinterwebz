@@ -84,7 +84,7 @@ To embed in an HTML page:
 
 The _redis-cli_ element supports these attributes:
 
-* _dbid_: the database ID to use, defaults to the first defined databse.
+* _dbid_: the database ID to use, defaults to the first defined database.
 * _asciiart_: controls ASCII art display
 
 ## TODO

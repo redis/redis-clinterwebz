@@ -67,7 +67,7 @@ form.redis-cli >  div.powered {
 }
 
 form.redis-cli >  div.powered::before {
-  background: url("/images/redis-cube.svg") no-repeat right center;
+  background: url("/static/images/redis-cube.svg") no-repeat right center;
   background-size: contain;
   content: '';
   position: absolute;

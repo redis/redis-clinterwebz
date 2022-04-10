@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 from typing import Any
 from flask import Flask, request, render_template
 from flask_cors import CORS
@@ -17,7 +16,6 @@ def create_app(test_config=None):
     json_settings = os.environ.get('INTERWEBZ_JSON_SETTINGS')
     if json_settings is not None:
         app.config.from_file(json_settings, load=json.load)
-        pass
     CORS(app, **app.config['CORS'])
 
     if test_config is None:
