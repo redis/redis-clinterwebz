@@ -7,4 +7,4 @@ ACL SETUSER interwebz -readonly -asking -hello -wait -quit -reset -auth -readwri
 ACL SETUSER interwebz -client|tracking -client|getredir -client|info -client|getname -client|reply -client|trackinginfo -client|setname -client|caching
 ACL SETUSER interwebz -copy -move -select -randomkey
 ACL SETUSER interwebz -lolwut
-ACL SETUSER interwebz +info +keys
+ACL SETUSER interwebz +info +keys +time
