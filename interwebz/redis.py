@@ -85,8 +85,9 @@ class KeySpec():
         self.find_keys = find_keys
 
 class CommandSpec():
-    def __init__(self, arity: int):
+    def __init__(self, arity: int, flags: list):
         self.arity = arity
+        self.moveable_keys = 'movablekeys' in flags
         self.key_specs = []
 
     def add_key_spec(self, key_spec: KeySpec):
@@ -139,7 +140,7 @@ class NameSpacedRedis(Redis):
 
     def _parse_command_response(self, response, **options):
         for command in response:
-            command_spec = CommandSpec(command[1])
+            command_spec = CommandSpec(command[1], command[2])
             for s in command[8]:
                 key_spec = NameSpacedRedis._key_spec_to_dict(s) # spec start at possition 8
                 begin_type = key_spec['begin_search']['type']
@@ -197,7 +198,6 @@ class NameSpacedRedis(Redis):
         is_subcmd = False
         if cmd_name not in self.commands:
             raise exceptions.RedisError(f'unknown command \'{argv[0]}\'')
-
         # Check if this is a subcommand
         argc = len(argv)
         if argc > 1:
@@ -229,6 +229,14 @@ class NameSpacedRedis(Redis):
             # Much easier than finding them keys
             session.relogin()
             return 'OK'
+        elif cmd.moveable_keys:
+            get_keys_args = argv.copy()
+            get_keys_args.insert(0, 'GETKEYS')
+            get_keys_args.insert(0, "COMMAND")
+            mapping = self.execute_command(*get_keys_args)
+            for arg in mapping:
+                idx = argv.index(arg)
+                argv[idx] = f'{session}:{arg}'
         else:
             # Quickly check arity
             if cmd.arity > 0 and argc != cmd.arity:
