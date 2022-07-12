@@ -1,5 +1,6 @@
 from typing import Any
 from redis import Redis, exceptions
+from redis.client import NEVER_DECODE
 from .pagesession import PageSession
 from abc import ABC
 from abc import abstractmethod
@@ -191,6 +192,20 @@ class NameSpacedRedis(Redis):
     def _strip_id_from_keys(id: str, keys: list) -> list:
         return [x[len(str(id))+1:] for x in keys]
 
+    @staticmethod
+    def _binary_response_to_str(response: Any) -> str:
+        """
+        Parses a binary response to string without decoding
+        so we can show it the same way redis-cli does.
+
+        Non-binary responses are ignored and returned as is.
+        """
+        if isinstance(response, bytes):
+            # Remove the b' at the start and the ' at the end.
+            return str(response)[2:-1]
+
+        return response
+
     def execute_namespaced(self, session: PageSession, argv: list) -> Any:
         # try:
         # Locate the command in the SSOT
@@ -205,6 +220,8 @@ class NameSpacedRedis(Redis):
             is_subcmd = subcmd_name in self.commands
             if is_subcmd:
                 cmd_name = subcmd_name
+
+        options = dict()
 
         # Pre-processing
         # TODO: patterns may be extracted the from command arguments pecs, and if so
@@ -250,8 +267,13 @@ class NameSpacedRedis(Redis):
             for i in keys_index:
                 argv[i] = f'{session}:{argv[i]}'
 
+        # DUMP command returns binary string so we need to tell the
+        # parser not to decode it
+        if cmd_name == 'dump':
+            options[NEVER_DECODE] = []
+
         # Send the command
-        rep = self.execute_command(*argv)
+        rep = self.execute_command(*argv, **options)
 
         # Post-processin'
         if cmd_name == 'keys':
@@ -260,5 +282,7 @@ class NameSpacedRedis(Redis):
             rep[1] = self._strip_id_from_keys(session, rep[1])
         elif cmd_name in ['lmpop','zmpop'] and rep is not None and len(rep) == 2:
             rep[0] = self._strip_id_from_keys(session, [rep[0]])[0]
+        elif cmd_name == 'dump':
+            rep = self._binary_response_to_str(rep)
 
         return rep
