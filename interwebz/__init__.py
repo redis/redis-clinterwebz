@@ -55,7 +55,7 @@ def create_app(test_config=None):
             return ''
 
         psession = PageSession()
-        if commands[0] in app.default_client.commands:
+        if commands[0].split(' ')[0].lower() in app.default_client.commands:
             client = app.default_client
         else:
             client = app.stack_client
