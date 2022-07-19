@@ -8,6 +8,7 @@ services:
       - 5000:5000
     depends_on:
       - redis-unstable
+      - redis-stack
 
   flask-nginx:
     build:
@@ -24,3 +25,10 @@ services:
       context: .
     ports:
       - 6379:6379
+
+  redis-stack:
+    build:
+      dockerfile: docker/redis-stack/Dockerfile
+      context: .
+    ports:
+      - 6378:6379

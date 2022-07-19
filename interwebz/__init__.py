@@ -29,6 +29,7 @@ def create_app(test_config=None):
     app.clients = {db['id']: NameSpacedRedis.from_url(
         db['url'], decode_responses=True) for db in app.config['DBS']}
     app.default_client = app.clients[app.config['DBS'][0]['id']]
+    app.stack_client = app.clients['stack']
 
     def reply(value: Any, error: bool) -> dict:
         """ API reply object. """
@@ -54,7 +55,10 @@ def create_app(test_config=None):
             return ''
 
         psession = PageSession()
-        client = app.default_client
+        if commands[0] in app.default_client.commands:
+            client = app.default_client
+        else:
+            client = app.stack_client
         if dbid is not None:
             if dbid in app.clients:
                 client = app.clients[dbid]
