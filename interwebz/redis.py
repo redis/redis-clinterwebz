@@ -264,7 +264,7 @@ class NameSpacedRedis(Redis):
             rep = self._strip_id_from_keys(session, rep)
         elif cmd_name == 'scan':
             rep[1] = self._strip_id_from_keys(session, rep[1])
-        elif cmd_name in ['lmpop','zmpop'] and rep is not None and len(rep) == 2:
+        elif cmd_name in ['lmpop','zmpop'] and len(rep) == 2:
             rep[0] = self._strip_id_from_keys(session, [rep[0]])[0]
 
         return rep
