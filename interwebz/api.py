@@ -5,10 +5,14 @@ from redis import exceptions
 
 from .pagesession import PageSession
 from .redis import NameSpacedRedis
+from math import log
+from math import log2
+from math import pow
 
 max_batch_size = 20
 max_arguments = 25
 max_argument_size = 256
+max_bits_allowed = 16000
 
 
 def reply(value: Any, error: bool) -> dict:
@@ -31,6 +35,7 @@ def sanitize_exceptions(argv: list) -> Any:
     # TODO: potential "attack" vectors: append, bitfield, sadd, zadd, xadd, hset, lpush/lmove*, sunionstore, zunionstore, ...
     cmd_name = argv[0].lower()
     argc = len(argv)
+    argv_lower = [x.lower()  for x in argv]
     if cmd_name == 'setbit' and argc == 4:
         try:
             offset = int(argv[2])
@@ -39,6 +44,19 @@ def sanitize_exceptions(argv: list) -> Any:
                 return f'offset too big - only up to {max_offset} bits allowed'
         except ValueError:
             pass  # Let the Redis server return a proper parsing error :)
+    elif cmd_name == 'bf.reserve' and argc >=4 :
+        try:
+            error_rate = float(argv[2])
+            capacity = float(argv[3])
+            return verify_bf(error_rate, capacity, argv, argv_lower)
+        except Exception as e:
+            raise e
+    elif cmd_name == 'bf.insert':
+        capacity_idx = argv_lower.index('capacity')
+        error_idx = argv_lower.index('error')
+        res = None
+        if(capacity_idx >= 1) and error_idx >= 1 and argc> max(capacity_idx, error_idx):
+            res = verify_bf(float(argv[error_idx+1]), float(argv[capacity_idx+1]), argv, argv_lower)        
     elif cmd_name == 'setrange' and argc == 4:
         try:
             offset = int(argv[2])
@@ -52,6 +70,20 @@ def sanitize_exceptions(argv: list) -> Any:
 
     return None
 
+def verify_bf(error_rate, capacity, argv, argv_lower) -> Any:
+    bits_per_item = -log2(error_rate)/(pow(log(2), 2))
+    num_bits_required = bits_per_item * capacity
+    if num_bits_required > max_bits_allowed:
+        return f'BF.RESERVE asking for too much memory, {int(num_bits_required)} bits requested, only {max_bits_allowed} allowed'
+    elif 'expansion' in argv_lower:
+        return 'Use of the EXPANSION argument is not'
+    elif not 'nonscaling' in argv_lower:
+        if 'items' in argv_lower:
+            items_idx = argv_lower.index('items')
+            argv.insert(items_idx, 'NONSCALING')
+        else:
+            argv.append('NONSCALING')
+    return None
 
 def verify_commands(commands: Any) -> Any:
     if type(commands) is not list:
