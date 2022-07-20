@@ -141,38 +141,41 @@ class NameSpacedRedis(Redis):
     def _parse_command_response(self, response, **options):
         for command in response:
             command_spec = CommandSpec(command[1], command[2])
-            for s in command[8]:
-                key_spec = NameSpacedRedis._key_spec_to_dict(s) # spec start at possition 8
-                begin_type = key_spec['begin_search']['type']
-                begin_search = None
-                if begin_type == 'index':
-                    begin_search = BeginSearchIndex(key_spec['begin_search']['spec']['index'])
-                elif begin_type == 'keyword':
-                    keyword = key_spec['begin_search']['spec']['keyword']
-                    start_from = key_spec['begin_search']['spec']['startfrom']
-                    begin_search = BeginSearchKeyord(keyword, start_from)
+            if len(command)>7:
+                for s in command[8]:
+                    key_spec = NameSpacedRedis._key_spec_to_dict(s) # spec start at possition 8
+                    begin_type = key_spec['begin_search']['type']
+                    begin_search = None
+                    if begin_type == 'index':
+                        begin_search = BeginSearchIndex(key_spec['begin_search']['spec']['index'])
+                    elif begin_type == 'keyword':
+                        keyword = key_spec['begin_search']['spec']['keyword']
+                        start_from = key_spec['begin_search']['spec']['startfrom']
+                        begin_search = BeginSearchKeyord(keyword, start_from)
 
-                if begin_search is None:
-                    continue
+                    if begin_search is None:
+                        continue
 
-                find_type = key_spec['find_keys']['type']
-                find_keys = None
-                if find_type == 'range':
-                    step = key_spec['find_keys']['spec']['keystep']
-                    lastkey = key_spec['find_keys']['spec']['lastkey']
-                    limit = key_spec['find_keys']['spec']['limit']
-                    find_keys = FindKeysRange(step, lastkey, limit)
-                elif find_type == 'keynum':
-                    step = key_spec['find_keys']['spec']['keystep']
-                    firstkey = key_spec['find_keys']['spec']['firstkey']
-                    keynumidx = key_spec['find_keys']['spec']['keynumidx']
-                    find_keys = FindKeysNum(step, firstkey, keynumidx)
+                    find_type = key_spec['find_keys']['type']
+                    find_keys = None
+                    if find_type == 'range':
+                        step = key_spec['find_keys']['spec']['keystep']
+                        lastkey = key_spec['find_keys']['spec']['lastkey']
+                        limit = key_spec['find_keys']['spec']['limit']
+                        find_keys = FindKeysRange(step, lastkey, limit)
+                    elif find_type == 'keynum':
+                        step = key_spec['find_keys']['spec']['keystep']
+                        firstkey = key_spec['find_keys']['spec']['firstkey']
+                        keynumidx = key_spec['find_keys']['spec']['keynumidx']
+                        find_keys = FindKeysNum(step, firstkey, keynumidx)
 
-                if find_keys is None:
-                    continue
+                    if find_keys is None:
+                        continue
 
-                key_spec = KeySpec(begin_search, find_keys)
-                command_spec.add_key_spec(key_spec)
+                    key_spec = KeySpec(begin_search, find_keys)
+                    command_spec.add_key_spec(key_spec)
+            else:
+                command_spec.moveable_keys = True # this is pre Redis 7, the keyspec is incomplete so always scrutinize the command's keys
             self.commands[command[0]] = command_spec
 
         for c in self.commands.keys():
@@ -233,10 +236,13 @@ class NameSpacedRedis(Redis):
             get_keys_args = argv.copy()
             get_keys_args.insert(0, 'GETKEYS')
             get_keys_args.insert(0, "COMMAND")
-            mapping = self.execute_command(*get_keys_args)
-            for arg in mapping:
-                idx = argv.index(arg)
-                argv[idx] = f'{session}:{arg}'
+            try:
+                mapping = self.execute_command(*get_keys_args)
+                for arg in mapping:
+                    idx = argv.index(arg)
+                    argv[idx] = f'{session}:{arg}'
+            except:
+                pass
         else:
             # Quickly check arity
             if cmd.arity > 0 and argc != cmd.arity:

@@ -9,6 +9,10 @@
         {
             "id": "default",
             "url": "redis://interwebz:password1@localhost:6379"
+        },
+        {
+            "id": "stack",
+            "url": "redis://interwebz:password1@localhost:6378"
         }
     ],
     "SECRET_KEY": "some_random_value",

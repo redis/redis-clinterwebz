@@ -8,6 +8,10 @@
         {
             "id": "default",
             "url": "redis://interwebz:password1@redis-unstable:6379"
+        },
+        {
+            "id": "stack",
+            "url": "redis://interwebz:password1@redis-stack:6379"
         }
     ],
     "SECRET_KEY": "some_random_value",
