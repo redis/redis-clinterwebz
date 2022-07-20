@@ -59,7 +59,7 @@ def sanitize_exceptions(argv: list) -> Any:
             res = verify_bf(float(argv[error_idx+1]), float(argv[capacity_idx+1]), argv, argv_lower, cmd_name)
     elif cmd_name == 'cms.initbydim' or cmd_name == 'cms.initbyprob':
         return verify_cms(argv, cmd_name)
-    elif cmd_name == 'cf.reserve' or cmd_name == 'cf.insert':
+    elif cmd_name == 'cf.reserve' or cmd_name == 'cf.insert' or cmd_name == 'cf.insertnx':
         return verify_cf(argv_lower, cmd_name)
     elif cmd_name == 'setrange' and argc == 4:
         try:
