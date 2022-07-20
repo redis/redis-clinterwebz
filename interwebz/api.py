@@ -48,7 +48,7 @@ def sanitize_exceptions(argv: list) -> Any:
         try:
             error_rate = float(argv[2])
             capacity = float(argv[3])
-            return verify_bf(error_rate, capacity, argv, argv_lower)
+            return verify_bf(error_rate, capacity, argv, argv_lower, cmd_name)
         except Exception as e:
             raise e
     elif cmd_name == 'bf.insert':
@@ -56,7 +56,11 @@ def sanitize_exceptions(argv: list) -> Any:
         error_idx = argv_lower.index('error')
         res = None
         if(capacity_idx >= 1) and error_idx >= 1 and argc> max(capacity_idx, error_idx):
-            res = verify_bf(float(argv[error_idx+1]), float(argv[capacity_idx+1]), argv, argv_lower)        
+            res = verify_bf(float(argv[error_idx+1]), float(argv[capacity_idx+1]), argv, argv_lower, cmd_name)
+    elif cmd_name == 'cms.initbydim' or cmd_name == 'cms.initbyprob':
+        return verify_cms(argv, cmd_name)
+    elif cmd_name == 'cf.reserve' or cmd_name == 'cf.insert':
+        return verify_cf(argv_lower, cmd_name)
     elif cmd_name == 'setrange' and argc == 4:
         try:
             offset = int(argv[2])
@@ -70,11 +74,45 @@ def sanitize_exceptions(argv: list) -> Any:
 
     return None
 
-def verify_bf(error_rate, capacity, argv, argv_lower) -> Any:
+def verify_cf(argv_lower, cmd_name) -> Any:
+    capacity = 1024
+    bucket_size = 1
+    if cmd_name == 'cf.reserve':
+        if 'bucketsize' in argv_lower and len(argv_lower) > argv_lower.index('bucketsize')+1:
+            bucket_size = int(argv_lower[argv_lower.index('bucketsize')+1])
+        capacity = int(argv_lower[2])
+    elif cmd_name == 'cf.insert':
+        if 'capacity' in argv_lower and len(argv_lower) > argv_lower.index('capacity') + 1:
+            capacity = int(argv_lower[argv_lower.index('capacity') + 1])
+    if 'expansion' in argv_lower:
+        return 'Use of the EXPANSION argument is not'
+    num_bits_required = ceil((log2(1./((2.*bucket_size)/255))/.955) * capacity)
+    if num_bits_required > max_bits_allowed:
+        return f'{cmd_name} requests more thant allowed bits, requested {num_bits_required} only {max_bits_allowed}'
+
+def verify_cms(argv, cmd_name) -> Any:
+    
+    width = 0
+    depth = 0
+    if cmd_name == 'cms.initbyprob':
+        width = ceil(2./float(argv[2]))
+        print(argv[3])
+        depth = ceil(log10(float(argv[3]))/log10(.5))
+    elif cmd_name == 'cms.initbydim':
+        width = int(argv[2])
+        depth = int(argv[3])
+    num_bits_required = width * depth * 64
+    print(num_bits_required)
+    if num_bits_required > max_bits_allowed:
+        return f'{cmd_name} requests more thant allowed bits, requested {num_bits_required} only {max_bits_allowed}'
+    return None
+
+
+def verify_bf(error_rate, capacity, argv, argv_lower, cmd_name) -> Any:
     bits_per_item = -log2(error_rate)/(pow(log(2), 2))
     num_bits_required = bits_per_item * capacity
     if num_bits_required > max_bits_allowed:
-        return f'BF.RESERVE asking for too much memory, {int(num_bits_required)} bits requested, only {max_bits_allowed} allowed'
+        return f'{cmd_name} asking for too much memory, {int(num_bits_required)} bits requested, only {max_bits_allowed} '
     elif 'expansion' in argv_lower:
         return 'Use of the EXPANSION argument is not'
     elif not 'nonscaling' in argv_lower:
