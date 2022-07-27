@@ -13,7 +13,9 @@ max_batch_size = 20
 max_arguments = 25
 max_argument_size = 256
 max_bits_allowed = 16000
+max_bytes_allowed = max_bits_allowed * 8
 
+ts_cmds = ['ts.create','ts.add','ts.alter','ts.incrby','ts.decrby']
 
 def reply(value: Any, error: bool) -> dict:
     return {
@@ -61,6 +63,10 @@ def sanitize_exceptions(argv: list) -> Any:
         return verify_cms(argv, cmd_name)
     elif cmd_name == 'cf.reserve' or cmd_name == 'cf.insert' or cmd_name == 'cf.insertnx':
         return verify_cf(argv_lower, cmd_name)
+    elif cmd_name == 'topk.reserve':
+        return verify_topk(argv)
+    elif cmd_name in ts_cmds:
+        return verify_ts_create(argv_lower)
     elif cmd_name == 'setrange' and argc == 4:
         try:
             offset = int(argv[2])
@@ -73,6 +79,31 @@ def sanitize_exceptions(argv: list) -> Any:
         return f'the \'{argv[0]}\' command is not'
 
     return None
+
+def verify_ts_create(argv_lower) -> Any:    
+    illegal_arguments = []
+    if 'chunk_size' in argv_lower:
+        illegal_arguments.append('chunk_size')
+    if 'encoding' in argv_lower:
+        illegal_arguments.append('encoding')
+    if 'labels' in argv_lower:
+        illegal_arguments.append('labels')
+    if len(illegal_arguments) == 1:
+        return f'Argument "{illegal_arguments[0]}" is not'
+    elif len(illegal_arguments) > 0:
+        return f'Arguments {illegal_arguments} are not'
+
+def verify_topk(argv) -> Any:
+    k = int(argv[2])
+    width = 0
+    depth = 0
+    if len(argv) > 3:
+        width = int(argv[3])
+        depth = int(argv[4])
+
+    bytes_required = (k * 13 + width * depth * 8)
+    if bytes_required > max_bytes_allowed:
+        return f'TOPK.RESERVE requests more than allowed bytes, requested {bytes_required} only {max_bytes_allowed}'
 
 def verify_cf(argv_lower, cmd_name) -> Any:
     capacity = 1024
