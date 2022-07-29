@@ -8,3 +8,4 @@ ACL SETUSER interwebz -client|tracking -client|getredir -client|info -client|get
 ACL SETUSER interwebz -copy -move -select -randomkey
 ACL SETUSER interwebz -lolwut
 ACL SETUSER interwebz +info +keys +time
+ACL SETUSER interwebz +client|info +role
