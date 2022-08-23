@@ -177,7 +177,7 @@ class NameSpacedRedis(Redis):
 
         for c in self.commands.keys():
             # make sure all responses will be returned as is
-            self.set_response_callback(c, lambda res: res)
+            self.set_response_callback(c, lambda res, **options: res)
 
     def _get_commands(self):
         self.set_response_callback('COMMAND', self._parse_command_response)
@@ -210,6 +210,11 @@ class NameSpacedRedis(Redis):
         # TODO: patterns may be extracted the from command arguments pecs, and if so
         # we can add support for `SORT` and potential future commands automatically.
         cmd = self.commands[cmd_name]
+        options = {}
+        if cmd_name == 'dump':
+            from redis.client import NEVER_DECODE
+            options[NEVER_DECODE] = []
+
         if cmd_name == 'keys' and argc == 2:
             # Namespace the key pattern
             argv[1] = f'{session}:{argv[1]}'
@@ -251,7 +256,7 @@ class NameSpacedRedis(Redis):
                 argv[i] = f'{session}:{argv[i]}'
 
         # Send the command
-        rep = self.execute_command(*argv)
+        rep = self.execute_command(*argv, **options)
 
         # Post-processin'
         if cmd_name == 'keys':
@@ -260,5 +265,7 @@ class NameSpacedRedis(Redis):
             rep[1] = self._strip_id_from_keys(session, rep[1])
         elif cmd_name in ['lmpop','zmpop'] and rep is not None and len(rep) == 2:
             rep[0] = self._strip_id_from_keys(session, [rep[0]])[0]
+        elif cmd_name == 'dump':
+            rep = repr(rep)[2:-1]
 
         return rep
